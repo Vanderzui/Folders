@@ -38,44 +38,24 @@ public class FolderServiceImpl implements FolderService {
 
     @Override
     public void compareFileSystems() throws IOException {
-        Properties prop = new Properties();
-        InputStream is = getClass().getClassLoader().getResourceAsStream("application.properties");
-        prop.load(is);
-
         final var firstPath = prop.getProperty("directory.first");
         final var secondPath = prop.getProperty("directory.second");
 
-        File first = new File(firstPath);
-        File second = new File(secondPath);
+        System.out.println(compareUsingWalk(firstPath, secondPath));
+        System.out.println(compareByNamesUsingMap(firstPath, secondPath));
+        System.out.println(compareUsingRecursion(firstPath, secondPath));
 
-        flattenTheTree(first, mapFirst);
-        flattenTheTree(second, mapSecond);
-
-        String equal = mapFirst.equals(mapSecond) ? "are equal" : " are not equal";
-        System.out.println(
-                "Two different directories one = %s and another %s with some stuff in it %s"
-                        .formatted(firstPath, secondPath, equal));
-
-    private boolean isEqualDirectories2(File first, File second) {
-        return first.getName().equals(second.getName());
     }
 
-    /**
-     * Will use it later
-     */
-    @Override
-    public boolean isEqualFiles(File pathOne, File pathTwo) throws IOException {
-        if (pathOne.isHidden() && pathTwo.isHidden()
-                && pathOne.getName().equals(pathTwo.getName())) {
-            return true;
-        } else if (!pathOne.isHidden() && !pathTwo.isHidden()) {
-//          final var reader1 = Files.newBufferedReader(pathOne.toPath());
-            String content1 = Files.readString(pathOne.toPath());
-            String content2 = Files.readString(pathTwo.toPath());
-            return content1.equals(content2);
-        } else {
-            return false;
-        }
+
+    private boolean isEqualDirectories(File first, File second) {
+        final var strings = Arrays.stream(Objects.requireNonNull(first.listFiles()))
+                .map(File::getName)
+                .toList();
+        final var strings1 = Arrays.stream(Objects.requireNonNull(second.listFiles()))
+                .map(File::getName)
+                .toList();
+        return strings.equals(strings1);
     }
 
     private void flattenTheTree(File file, Map<String, List<String>> targetMap) {
@@ -89,42 +69,20 @@ public class FolderServiceImpl implements FolderService {
     }
 
     /**
-     * Will use it later or maybe not
+     * Comparing just by names :(
      */
     @Override
-    public boolean compareDirectoriesByFileNamesInside(String firstDirectory,
-            String secondDirectory) {
-        File first = new File(firstDirectory);
-        File second = new File(secondDirectory);
-        return
-                Arrays.stream(Objects.requireNonNull(first.listFiles()))
-                        .map(File::getName)
-                        .toList()
-                        .equals(
-                                Arrays.stream(Objects.requireNonNull(second.listFiles()))
-                                        .map(File::getName)
-                                        .toList());
-
-
-    }
-
-    @Override
-    public void compareByNamesUsingMap(String first, String second) throws IOException {
+    public boolean compareByNamesUsingMap(String first, String second) throws IOException {
 
         final var firstPath = prop.getProperty("directory.first");
         final var secondPath = prop.getProperty("directory.second");
 
         File firstFile = new File(firstPath);
         File secondFile = new File(secondPath);
-        boolean result = compare2(firstFile, secondFile);
-        System.out.println(result);
 
         flattenTheTree(firstFile, mapFirst);
         flattenTheTree(secondFile, mapSecond);
-        String equal = mapFirst.equals(mapSecond) ? "are equal" : "are not equal";
-        System.out.println(
-                "Two different directories one = %s and another %s with some stuff in it %s"
-                        .formatted(firstPath, secondPath, equal));
+        return mapFirst.equals(mapSecond);
     }
 
     private void addToMap(File file, Map<String, List<String>> targetMap) {
@@ -137,32 +95,70 @@ public class FolderServiceImpl implements FolderService {
         }
     }
 
+    /**
+     * Comparing just by names :(
+     */
     @Override
     public boolean compareUsingWalk(String first, String second) throws IOException {
         Path path1 = Paths.get(first);
         Path path2 = Paths.get(second);
-        final var firstThree = Files.walk(path1).map(Path::getFileName).skip(1).toList();
-        final var secondThree = Files.walk(path2).map(Path::getFileName).skip(1).toList();
-        return firstThree.equals(secondThree);
+        final var firstTree = Files.walk(path1).map(Path::getFileName).skip(1).toList();
+        final var secondTree = Files.walk(path2).map(Path::getFileName).skip(1).toList();
+
+        return firstTree.equals(secondTree);
     }
 
 
+    @Override
+    public boolean compareUsingRecursion(String firstPath, String secondPath) throws IOException {
+        File firstFile = new File(firstPath);
+        File secondFile = new File(secondPath);
+        return isEqual(firstFile, secondFile);
+    }
 
+    private boolean isEqual(File firstFile, File secondFile) throws IOException {
+        if (firstFile.isFile() && secondFile.isFile()) {
+            if (!isEqualFiles(firstFile, secondFile)) {
+                return false;
+            }
+        }
+        if (firstFile.isDirectory() && secondFile.isDirectory()) {
+            File[] firstDirContent = firstFile.listFiles();
+            File[] secondDirContent = secondFile.listFiles();
+            if (firstDirContent.length > 0 && secondDirContent.length > 0) {
+                for (int i = 0; i < firstDirContent.length; i++) {
+                    if (firstDirContent.length == secondDirContent.length) {
+                        if (!isEqual(firstDirContent[i], secondDirContent[i])) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+            } else {
+                return isEqualsDirectoryName(firstFile, secondFile);
+            }
+        }
+        return true;
+    }
+
+    private boolean isEqualsDirectoryName(File first, File second) {
+        return first.getName().equals(second.getName());
+    }
+
+    private boolean isEqualFiles(File fileOne, File fileTwo) throws IOException {
+        if (fileOne.isHidden() && fileTwo.isHidden()
+                && fileOne.getName().equals(fileTwo.getName())) {
+            return true;
+        } else if (
+                Files.size(fileOne.toPath()) == Files.size(fileTwo.toPath()) &&
+                        (!fileOne.isHidden() && !fileTwo.isHidden())) {
+//          final var reader1 = Files.newBufferedReader(pathOne.toPath());
+            String content1 = Files.readString(fileOne.toPath());
+            String content2 = Files.readString(fileTwo.toPath());
+            return content1.equals(content2);
+        } else {
+            return false;
+        }
+    }
 }
-
-//DO NOT LOOK
-//        //old way
-//        //------------------------------------------
-//        File file = new File(folderPath);
-//        file.exists();
-//        file.getName();
-//        Arrays.stream(file.listFiles()).map(f -> f.getName()).toList(); //f ->folderPath + "/" + f.getName()
-//        //---
-
-//-------------new way
-////        final var s = Files.readString(Path.of(firstPath + "/one/Alisa.txt"));
-//        final var start = Paths.get(firstPath);
-//        start.getFileSystem();
-//        if(Files.isDirectory(start)) {
-//            Files.newDirectoryStream(start);
-//        }
