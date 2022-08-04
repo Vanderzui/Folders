@@ -7,9 +7,8 @@ import java.net.URISyntaxException;
 
 public class FoldersApplication {
 
-    private static FolderService folderService = new FolderServiceImpl(); //todo
-
     public static void main(String[] args) throws IOException, URISyntaxException {
+        FolderService folderService = new FolderServiceImpl();
         folderService.compareFileSystems();
     }
 
