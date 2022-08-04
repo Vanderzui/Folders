@@ -20,8 +20,12 @@ public class FolderServiceImpl implements FolderService {
     private static final String FILES = "files";
     private Map<String, List<String>> mapFirst;
     private Map<String, List<String>> mapSecond;
+    private Properties prop = new Properties();
 
-    public FolderServiceImpl() {
+    public FolderServiceImpl() throws IOException {
+        InputStream is = getClass().getClassLoader().getResourceAsStream("application.properties");
+        prop.load(is);
+
         mapFirst = new LinkedHashMap<>();
         mapFirst.put(DIRECTORIES, new ArrayList<>());
         mapFirst.put(FILES, new ArrayList<>());
@@ -52,6 +56,26 @@ public class FolderServiceImpl implements FolderService {
                 "Two different directories one = %s and another %s with some stuff in it %s"
                         .formatted(firstPath, secondPath, equal));
 
+    private boolean isEqualDirectories2(File first, File second) {
+        return first.getName().equals(second.getName());
+    }
+
+    /**
+     * Will use it later
+     */
+    @Override
+    public boolean isEqualFiles(File pathOne, File pathTwo) throws IOException {
+        if (pathOne.isHidden() && pathTwo.isHidden()
+                && pathOne.getName().equals(pathTwo.getName())) {
+            return true;
+        } else if (!pathOne.isHidden() && !pathTwo.isHidden()) {
+//          final var reader1 = Files.newBufferedReader(pathOne.toPath());
+            String content1 = Files.readString(pathOne.toPath());
+            String content2 = Files.readString(pathTwo.toPath());
+            return content1.equals(content2);
+        } else {
+            return false;
+        }
     }
 
     private void flattenTheTree(File file, Map<String, List<String>> targetMap) {
@@ -62,34 +86,6 @@ public class FolderServiceImpl implements FolderService {
                 flattenTheTree(innerFile, targetMap);
             }
         }
-    }
-
-    private void addToMap(File file, Map<String, List<String>> targetMap) {
-        if (file.isDirectory()) {
-            var dirs = targetMap.get(DIRECTORIES);
-            dirs.add(file.getName());
-        } else if (file.isFile()) {
-            var files = targetMap.get(FILES);
-            files.add(file.getName());
-        }
-    }
-
-    /**
-     * Will use it later
-     */
-    @Override
-    public boolean compareTextFiles(String pathOne, String pathTwo) throws IOException {
-//        Path filePath1 = Paths.get(pathOne);
-        Path filePath1 = Paths.get("src/main/resources/first.txt");
-        Path filePath2 = Paths.get("src/main/resources/second.txt");
-        Path filePath3 = Paths.get("src/main/resources/third.txt");
-
-        String content1 = Files.readString(filePath1);
-        String content2 = Files.readString(filePath2);
-        String content3 = Files.readString(filePath3);
-
-        return content1.equals(content2);
-//        return content1.equals(content3));
     }
 
     /**
@@ -111,6 +107,47 @@ public class FolderServiceImpl implements FolderService {
 
 
     }
+
+    @Override
+    public void compareByNamesUsingMap(String first, String second) throws IOException {
+
+        final var firstPath = prop.getProperty("directory.first");
+        final var secondPath = prop.getProperty("directory.second");
+
+        File firstFile = new File(firstPath);
+        File secondFile = new File(secondPath);
+        boolean result = compare2(firstFile, secondFile);
+        System.out.println(result);
+
+        flattenTheTree(firstFile, mapFirst);
+        flattenTheTree(secondFile, mapSecond);
+        String equal = mapFirst.equals(mapSecond) ? "are equal" : "are not equal";
+        System.out.println(
+                "Two different directories one = %s and another %s with some stuff in it %s"
+                        .formatted(firstPath, secondPath, equal));
+    }
+
+    private void addToMap(File file, Map<String, List<String>> targetMap) {
+        if (file.isDirectory()) {
+            var dirs = targetMap.get(DIRECTORIES);
+            dirs.add(file.getName());
+        } else if (file.isFile()) {
+            var files = targetMap.get(FILES);
+            files.add(file.getName());
+        }
+    }
+
+    @Override
+    public boolean compareUsingWalk(String first, String second) throws IOException {
+        Path path1 = Paths.get(first);
+        Path path2 = Paths.get(second);
+        final var firstThree = Files.walk(path1).map(Path::getFileName).skip(1).toList();
+        final var secondThree = Files.walk(path2).map(Path::getFileName).skip(1).toList();
+        return firstThree.equals(secondThree);
+    }
+
+
+
 }
 
 //DO NOT LOOK
